@@ -1,0 +1,74 @@
+[
+  {
+    "name": "Project Structure",
+    "status": "PASS",
+    "duration": 0.0,
+    "error": null
+  },
+  {
+    "name": "Swift Compilation",
+    "status": "PASS",
+    "duration": 3.07,
+    "error": null
+  },
+  {
+    "name": "AI OCR Service Structure",
+    "status": "PASS",
+    "duration": 0.0,
+    "error": null
+  },
+  {
+    "name": "Clipboard Model Structure",
+    "status": "PASS",
+    "duration": 0.0,
+    "error": null
+  },
+  {
+    "name": "UI View Structure",
+    "status": "PASS",
+    "duration": 0.0,
+    "error": null
+  },
+  {
+    "name": "Manager Integration",
+    "status": "PASS",
+    "duration": 0.0,
+    "error": null
+  },
+  {
+    "name": "AI Model Support",
+    "status": "PASS",
+    "duration": 0.0,
+    "error": null
+  },
+  {
+    "name": "API Integration",
+    "status": "PASS",
+    "duration": 0.0,
+    "error": null
+  },
+  {
+    "name": "Clipboard Functionality",
+    "status": "PASS",
+    "duration": 0.0,
+    "error": null
+  },
+  {
+    "name": "UI Features",
+    "status": "PASS",
+    "duration": 0.0,
+    "error": null
+  },
+  {
+    "name": "Error Handling",
+    "status": "PASS",
+    "duration": 0.0,
+    "error": null
+  },
+  {
+    "name": "Configuration Management",
+    "status": "PASS",
+    "duration": 0.0,
+    "error": null
+  }
+]

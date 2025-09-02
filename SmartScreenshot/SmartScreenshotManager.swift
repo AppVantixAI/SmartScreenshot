@@ -15,6 +15,8 @@ class SmartScreenshotManager: ObservableObject {
     
     private var cancellables = Set<AnyCancellable>()
     private var regionSelectionController: RegionSelectionWindowController?
+    private var aiOCRService = AIOCRService.shared
+    private var clipboardManager = ScreenshotClipboardManager.shared
     
     init() {
         // Initialize the manager
@@ -94,9 +96,41 @@ class SmartScreenshotManager: ObservableObject {
         regionSelectionController?.show()
     }
     
-    // MARK: - OCR Methods
+    // MARK: - AI-Powered OCR Methods
     
-    func performOCR(on image: NSImage, region: CGRect? = nil) async -> String? {
+    func performOCR(on image: NSImage, model: AIOCRService.AIOCRModel? = nil) async -> String? {
+        guard let result = await aiOCRService.performOCR(on: image, model: model) else {
+            return nil
+        }
+        
+        // Update last OCR result
+        lastOCRResult = result.text
+        lastOCRConfidence = result.confidence
+        
+        // Add to clipboard manager
+        clipboardManager.addScreenshot(
+            image,
+            ocrText: result.text,
+            confidence: result.confidence,
+            model: result.model.rawValue,
+            processingTime: result.processingTime
+        )
+        
+        // Copy to clipboard
+        copyToClipboard(result.text)
+        
+        // Show notification
+        showNotification(
+            title: "SmartScreenshot OCR Complete",
+            body: "Text extracted with \(result.model.rawValue) (\(Int(result.confidence * 100))% confidence)"
+        )
+        
+        return result.text
+    }
+    
+    // MARK: - Legacy OCR Methods (for backward compatibility)
+    
+    func performLegacyOCR(on image: NSImage, region: CGRect? = nil) async -> String? {
         guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             return nil
         }
@@ -104,7 +138,7 @@ class SmartScreenshotManager: ObservableObject {
         return await withCheckedContinuation { continuation in
             let request = VNRecognizeTextRequest { [weak self] request, error in
                 if let error = error {
-                    print("❌ OCR Error: \(error.localizedDescription)")
+                    print("❌ Legacy OCR Error: \(error.localizedDescription)")
                     continuation.resume(returning: nil)
                     return
                 }
@@ -156,7 +190,7 @@ class SmartScreenshotManager: ObservableObject {
             do {
                 try handler.perform([request])
             } catch {
-                print("❌ Failed to perform OCR: \(error.localizedDescription)")
+                print("❌ Failed to perform legacy OCR: \(error.localizedDescription)")
                 continuation.resume(returning: nil)
             }
         }
@@ -168,42 +202,84 @@ class SmartScreenshotManager: ObservableObject {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
-        
-        // Show a notification
-        showNotification(title: "SmartScreenshot OCR Complete", body: "Text copied to clipboard")
     }
     
     // MARK: - Combined Methods
     
-    func captureAndOCR() async -> String? {
+    func captureAndOCR(model: AIOCRService.AIOCRModel? = nil) async -> String? {
         guard let screenshot = await captureScreenshot() else {
             return nil
         }
         
-        return await performOCR(on: screenshot)
+        return await performOCR(on: screenshot, model: model)
     }
     
-    func captureRegionAndOCR() async -> String? {
+    func captureRegionAndOCR(model: AIOCRService.AIOCRModel? = nil) async -> String? {
         guard let screenshot = await captureScreenRegion() else {
             return nil
         }
         
-        return await performOCR(on: screenshot)
+        return await performOCR(on: screenshot, model: model)
     }
     
     // MARK: - Bulk Processing Methods
     
-    func processMultipleImages(_ urls: [URL]) async -> [String] {
+    func processMultipleImages(_ urls: [URL], model: AIOCRService.AIOCRModel? = nil) async -> [String] {
         var results: [String] = []
         
         for url in urls {
             if let image = NSImage(contentsOf: url),
-               let text = await performOCR(on: image) {
+               let text = await performOCR(on: image, model: model) {
                 results.append(text)
             }
         }
         
         return results
+    }
+    
+    // MARK: - AI Model Management
+    
+    func getAvailableModels() -> [AIOCRService.AIOCRModel] {
+        return AIOCRService.AIOCRModel.allCases
+    }
+    
+    func getCurrentModel() -> AIOCRService.AIOCRModel {
+        return aiOCRService.currentModel
+    }
+    
+    func setCurrentModel(_ model: AIOCRService.AIOCRModel) {
+        aiOCRService.currentModel = model
+    }
+    
+    func getAIConfiguration() -> AIOCRService.AIConfig {
+        return aiOCRService.getConfiguration()
+    }
+    
+    func updateAIConfiguration(_ config: AIOCRService.AIConfig) {
+        aiOCRService.updateConfiguration(config)
+    }
+    
+    // MARK: - Clipboard Management
+    
+    func getClipboardItems() -> [ScreenshotClipboardItem] {
+        return clipboardManager.items
+    }
+    
+    func getPinnedItems() -> [ScreenshotClipboardItem] {
+        return clipboardManager.pinnedItems
+    }
+    
+    func searchClipboardItems(_ query: String) -> [ScreenshotClipboardItem] {
+        clipboardManager.searchQuery = query
+        return clipboardManager.filteredItems
+    }
+    
+    func clearClipboard() {
+        clipboardManager.clearAll()
+    }
+    
+    func removeClipboardItem(_ item: ScreenshotClipboardItem) {
+        clipboardManager.removeItem(item)
     }
     
     // MARK: - Notification Methods
@@ -247,6 +323,15 @@ class SmartScreenshotManager: ObservableObject {
         }
     }
     
+    func takeScreenshotWithSpecificModel(_ model: AIOCRService.AIOCRModel) async {
+        let result = await captureAndOCR(model: model)
+        if let text = result {
+            print("🤖 \(model.rawValue) OCR completed: \(text.prefix(50))...")
+        } else {
+            showNotification(title: "SmartScreenshot Error", body: "Failed to capture screenshot or perform OCR with \(model.rawValue)")
+        }
+    }
+    
     // MARK: - Utility Methods
     
     func getSupportedLanguages() -> [String] {
@@ -262,6 +347,24 @@ class SmartScreenshotManager: ObservableObject {
             print("❌ Failed to get supported languages: \(error.localizedDescription)")
             return []
         }
+    }
+    
+    func getOCRStatistics() -> [String: Any] {
+        let items = clipboardManager.items
+        let totalItems = items.count
+        let totalProcessingTime = items.reduce(0) { $0 + $1.processingTime }
+        let averageConfidence = items.isEmpty ? 0 : items.reduce(0) { $0 + $1.confidence } / Float(items.count)
+        
+        let modelUsage = Dictionary(grouping: items, by: { $0.model })
+            .mapValues { $0.count }
+        
+        return [
+            "totalScreenshots": totalItems,
+            "totalProcessingTime": totalProcessingTime,
+            "averageConfidence": averageConfidence,
+            "modelUsage": modelUsage,
+            "pinnedCount": clipboardManager.pinnedItems.count
+        ]
     }
 }
 
