@@ -1,6 +1,6 @@
-project: Maccy.xcodeproj
+project: SmartScreenshot.xcodeproj
 retain_objc_accessible: true
 schemes:
-- Maccy
+- SmartScreenshot
 targets:
-- Maccy
+- SmartScreenshot

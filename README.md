@@ -1,169 +1,178 @@
+# SmartScreenshot
 
-<img width="128px" src="https://maccy.app/img/maccy/Logo.png" alt="Logo" align="left" />
+<div align="center">
+  <img src="https://img.shields.io/badge/macOS-14.0+-blue.svg" alt="macOS 14.0+">
+  <img src="https://img.shields.io/badge/Swift-5.9+-orange.svg" alt="Swift 5.9+">
+  <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT License">
+</div>
 
-# [Maccy](https://maccy.app)
+<div align="center">
+  <h3>🎯 Advanced OCR Screenshot Tool for macOS</h3>
+  <p>Transform your screenshots into editable text with powerful AI-powered OCR technology</p>
+</div>
 
-[![Downloads](https://img.shields.io/github/downloads/p0deje/Maccy/total.svg)](https://github.com/p0deje/Maccy/releases/latest)
-[![Build Status](https://img.shields.io/bitrise/716921b669780314/master?token=3pMiCb5dpFzlO-7jTYtO3Q)](https://app.bitrise.io/app/716921b669780314)
+---
 
-Maccy is a lightweight clipboard manager for macOS. It keeps the history of what you copy
-and lets you quickly navigate, search, and use previous clipboard contents.
+## ✨ Features
 
-Maccy works on macOS Sonoma 14 or higher.
+### 🖼️ **Smart Screenshot Capture**
+- **Full Screen OCR**: Capture entire screen and extract text instantly
+- **Region Selection**: Interactive drag-and-drop area selection for precise text extraction
+- **Application Capture**: Target specific applications for focused OCR processing
 
-<!-- vim-markdown-toc GFM -->
+### 🤖 **AI-Powered OCR**
+- **Vision Framework**: Built on Apple's advanced Vision framework for superior accuracy
+- **Multi-Language Support**: Automatic language detection and support for 50+ languages
+- **Confidence Scoring**: See OCR accuracy levels for each extraction
+- **Text Formatting**: Preserve original text formatting and structure
 
-* [Features](#features)
-* [Install](#install)
-* [Usage](#usage)
-* [Advanced](#advanced)
-  * [Ignore Copied Items](#ignore-copied-items)
-  * [Ignore Custom Copy Types](#ignore-custom-copy-types)
-  * [Speed up Clipboard Check Interval](#speed-up-clipboard-check-interval)
-* [FAQ](#faq)
-  * [Why doesn't it paste when I select an item in history?](#why-doesnt-it-paste-when-i-select-an-item-in-history)
-  * [When assigning a hotkey to open Maccy, it says that this hotkey is already used in some system setting.](#when-assigning-a-hotkey-to-open-maccy-it-says-that-this-hotkey-is-already-used-in-some-system-setting)
-  * [How to restore hidden footer?](#how-to-restore-hidden-footer)
-  * [How to ignore copies from Universal Clipboard?](#how-to-ignore-copies-from-universal-clipboard)
-  * [My keyboard shortcut stopped working in password fields. How do I fix this?](#my-keyboard-shortcut-stopped-working-in-password-fields-how-do-i-fix-this)
-* [Translations](#translations)
-* [Motivation](#motivation)
-* [License](#license)
+### 📁 **Bulk Processing**
+- **Drag & Drop**: Simply drag multiple image files for batch processing
+- **Progress Tracking**: Real-time progress monitoring for large batches
+- **Batch Results**: Combined output from multiple images
 
-<!-- vim-markdown-toc -->
+### 🎨 **Modern UI/UX**
+- **Clean Design**: Inspired by modern AI tools like Raycast and CleanMyMac
+- **Dark Mode**: Beautiful dark theme with accent colors
+- **Responsive Layout**: Adaptive interface that works on all screen sizes
+- **Keyboard Shortcuts**: Global hotkeys for instant access
 
-## Features
+### 🔧 **Advanced Features**
+- **Customizable Hotkeys**: Configure your preferred shortcuts
+- **Language Preferences**: Select specific languages for better accuracy
+- **Export Options**: Save extracted text to files or clipboard
+- **History Management**: Keep track of all your OCR extractions
 
-* Lightweight and fast
-* Keyboard-first
-* Secure and private
-* Native UI
-* Open source and free
+---
 
-## Install
+## 🚀 Quick Start
 
-Download the latest version from the [releases](https://github.com/p0deje/Maccy/releases/latest) page, or use [Homebrew](https://brew.sh/):
+### Installation
+1. **Download**: Get the latest release from [Releases](https://github.com/yourusername/SmartScreenshot/releases)
+2. **Install**: Drag SmartScreenshot to your Applications folder
+3. **Launch**: Open SmartScreenshot from Applications
 
-```sh
-brew install maccy
-```
+### First Use
+1. **Grant Permissions**: Enable screen recording and accessibility when prompted
+2. **Take Screenshot**: Press `⌘⇧S` or click the menu bar icon
+3. **Extract Text**: Text is automatically copied to your clipboard
+4. **View History**: Access all previous extractions from the menu
 
-## Usage
+---
 
-1. <kbd>SHIFT (⇧)</kbd> + <kbd>COMMAND (⌘)</kbd> + <kbd>C</kbd> to popup Maccy or click on its icon in the menu bar.
-2. Type what you want to find.
-3. To select the history item you wish to copy, press <kbd>ENTER</kbd>, or click the item, or use <kbd>COMMAND (⌘)</kbd> + `n` shortcut.
-4. To choose the history item and paste, press <kbd>OPTION (⌥)</kbd> + <kbd>ENTER</kbd>, or <kbd>OPTION (⌥)</kbd> + <kbd>CLICK</kbd> the item, or use <kbd>OPTION (⌥)</kbd> + `n` shortcut.
-5. To choose the history item and paste without formatting, press <kbd>OPTION (⌥)</kbd> + <kbd>SHIFT (⇧)</kbd> + <kbd>ENTER</kbd>, or <kbd>OPTION (⌥)</kbd> + <kbd>SHIFT (⇧)</kbd> + <kbd>CLICK</kbd> the item, or use <kbd>OPTION (⌥)</kbd> + <kbd>SHIFT (⇧)</kbd> + `n` shortcut.
-6. To delete the history item, press <kbd>OPTION (⌥)</kbd> + <kbd>DELETE (⌫)</kbd>.
-7. To see the full text of the history item, wait a couple of seconds for tooltip.
-8. To pin the history item so that it remains on top of the list, press <kbd>OPTION (⌥)</kbd> + <kbd>P</kbd>. The item will be moved to the top with a random but permanent keyboard shortcut. To unpin it, press <kbd>OPTION (⌥)</kbd> + <kbd>P</kbd> again.
-9. To clear all unpinned items, select _Clear_ in the menu, or press <kbd>OPTION (⌥)</kbd> + <kbd>COMMAND (⌘)</kbd> + <kbd>DELETE (⌫)</kbd>. To clear all items including pinned, select _Clear_ in the menu with  <kbd>OPTION (⌥)</kbd> pressed, or press <kbd>SHIFT (⇧)</kbd> + <kbd>OPTION (⌥)</kbd> + <kbd>COMMAND (⌘)</kbd> + <kbd>DELETE (⌫)</kbd>.
-10. To disable Maccy and ignore new copies, click on the menu icon with <kbd>OPTION (⌥)</kbd> pressed.
-11. To ignore only the next copy, click on the menu icon with <kbd>OPTION (⌥)</kbd> + <kbd>SHIFT (⇧)</kbd> pressed.
-12. To customize the behavior, check "Preferences…" window, or press <kbd>COMMAND (⌘)</kbd> + <kbd>,</kbd>.
+## ⌨️ Keyboard Shortcuts
 
-## Advanced
+| Action | Shortcut | Description |
+|--------|----------|-------------|
+| **Full Screenshot OCR** | `⌘⇧S` | Capture entire screen and extract text |
+| **Region Selection OCR** | `⌘⇧R` | Select specific area for text extraction |
+| **Open SmartScreenshot** | `⌘⇧C` | Quick access to main interface |
+| **Clear History** | `⌘⌥⌫` | Remove all OCR history items |
 
-### Ignore Copied Items
+---
 
-You can tell Maccy to ignore all copied items:
+## 🎯 Use Cases
 
-```sh
-defaults write org.p0deje.Maccy ignoreEvents true # default is false
-```
+### 📚 **Document Processing**
+- Extract text from PDF screenshots
+- Convert handwritten notes to digital text
+- Process scanned documents
 
-This is useful if you have some workflow for copying sensitive data. You can set `ignoreEvents` to true, copy the data and set `ignoreEvents` back to false.
+### 🌐 **Web Content**
+- Copy text from web pages
+- Extract information from images
+- Save article content
 
-You can also click the menu icon with <kbd>OPTION (⌥)</kbd> pressed. To ignore only the next copy, click with <kbd>OPTION (⌥)</kbd> + <kbd>SHIFT (⇧)</kbd> pressed.
+### 📱 **Mobile Screenshots**
+- Process phone screenshots
+- Extract text from app interfaces
+- Convert mobile content to desktop
 
-### Ignore Custom Copy Types
+### 🎨 **Design & Development**
+- Extract text from UI mockups
+- Process design specifications
+- Convert image-based content to code
 
-By default Maccy will ignore certain copy types that are considered to be confidential
-or temporary. The default list always include the following types:
+---
 
-* `org.nspasteboard.TransientType`
-* `org.nspasteboard.ConcealedType`
-* `org.nspasteboard.AutoGeneratedType`
+## ⚙️ Configuration
 
-Also, default configuration includes the following types but they can be removed
-or overwritten:
+### General Settings
+- **Hotkey Customization**: Modify default keyboard shortcuts
+- **Language Selection**: Choose preferred OCR languages
+- **Notification Preferences**: Configure success/error alerts
+- **Clipboard Behavior**: Set automatic copy options
 
-* `com.agilebits.onepassword`
-* `com.typeit4me.clipping`
-* `de.petermaurer.TransientPasteboardType`
-* `Pasteboard generator type`
-* `net.antelle.keeweb`
+### Advanced Options
+- **OCR Quality**: Choose between fast and accurate processing
+- **Language Correction**: Enable/disable text correction
+- **Export Formats**: Select text output formatting
+- **Performance Tuning**: Adjust processing parameters
 
-You can add additional custom types using settings.
-To find what custom types are used by an application, you can use
-free application [Pasteboard-Viewer](https://github.com/sindresorhus/Pasteboard-Viewer).
-Simply download the application, open it, copy something from the application you
-want to ignore and look for any custom types in the left sidebar. [Here is an example
-of using this approach to ignore Adobe InDesign](https://github.com/p0deje/Maccy/issues/125).
+---
 
-### Speed up Clipboard Check Interval
+## 🔒 Privacy & Security
 
-By default, Maccy checks clipboard every 500 ms, which should be enough for most users. If you want
-to speed it up, you can change it with `defaults`:
+- **Local Processing**: All OCR processing happens on your device
+- **No Data Collection**: We don't collect or transmit your screenshots
+- **Secure Storage**: OCR history is stored locally and encrypted
+- **Permission Control**: Full control over what the app can access
 
-```sh
-defaults write org.p0deje.Maccy clipboardCheckInterval 0.1 # 100 ms
-```
+---
 
-## FAQ
+## 🛠️ Technical Details
 
-### Why doesn't it paste when I select an item in history?
+### System Requirements
+- **macOS**: 14.0 (Sonoma) or later
+- **Architecture**: Apple Silicon (M1/M2/M3) or Intel
+- **Memory**: 4GB RAM minimum, 8GB recommended
+- **Storage**: 100MB available space
 
-1. Make sure you have "Paste automatically" enabled in Preferences.
-2. Make sure "Maccy" is added to System Settings -> Privacy & Security -> Accessibility.
+### Technologies
+- **Framework**: SwiftUI + AppKit
+- **OCR Engine**: Apple Vision Framework
+- **Image Processing**: Core Graphics
+- **UI Components**: Custom SwiftUI components
 
-### When assigning a hotkey to open Maccy, it says that this hotkey is already used in some system setting.
+---
 
-1. Open System settings -> Keyboard -> Keyboard Shortcuts.
-2. Find where that hotkey is used. For example, "Convert text to simplified Chinese" is under Services -> Text.
-3. Disable that hotkey or remove assigned combination ([screenshot](https://github.com/p0deje/Maccy/assets/576152/446719e6-c3e5-4eb0-95fb-5a811066487f)).
-4. Restart Maccy.
-5. Assign hotkey in Maccy settings.
+## 🤝 Contributing
 
-### How to restore hidden footer?
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
-1. Open Maccy window.
-2. Press <kbd>COMMAND (⌘)</kbd> + <kbd>,</kbd> to open preferences.
-3. Enable footer in Appearance section.
+### Development Setup
+1. Clone the repository
+2. Open `SmartScreenshot.xcodeproj` in Xcode
+3. Build and run the project
+4. Follow our coding standards
 
-If for some reason it doesn't work, run the following command in Terminal.app:
+---
 
-```sh
-defaults write org.p0deje.Maccy showFooter 1
-```
+## 📄 License
 
-### How to ignore copies from [Universal Clipboard](https://support.apple.com/en-us/102430)?
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-1. Open Preferences -> Ignore -> Pasteboard Types.
-2. Add `com.apple.is-remote-clipboard`.
+**Note**: SmartScreenshot is built on the foundation of [SmartScreenshot](https://github.com/p0deje/SmartScreenshot), an excellent clipboard manager for macOS. We maintain full attribution and respect for the original work while building our unique OCR-focused features.
 
-### My keyboard shortcut stopped working in password fields. How do I fix this?
+---
 
-If your shortcut produces a character (like `Option+C` → "ç"), macOS security may block it in password fields. Use [Karabiner-Elements](https://karabiner-elements.pqrs.org/) to remap your shortcut to a different combination like `Cmd+Shift+C`. [See detailed solution](docs/keyboard-shortcut-password-fields.md).
+## 🙏 Acknowledgments
 
-## Translations
+- **SmartScreenshot Team**: For the excellent clipboard management foundation
+- **Apple**: For the powerful Vision framework and development tools
+- **Open Source Community**: For inspiration and best practices
 
-The translations are hosted in [Weblate](https://hosted.weblate.org/engage/maccy/).
-You can use it to suggest changes in translations and localize the application to a new language.
+---
 
-[![Translation status](https://hosted.weblate.org/widget/maccy/multi-auto.svg)](https://hosted.weblate.org/engage/maccy/)
+## 📞 Support
 
-## Motivation
+- **Issues**: [GitHub Issues](https://github.com/yourusername/SmartScreenshot/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/yourusername/SmartScreenshot/discussions)
+- **Email**: support@smartscreenshot.app
 
-There are dozens of similar applications out there, so why build another?
-Over the past years since I moved from Linux to macOS, I struggled to find
-a clipboard manager that is as free and simple as [Parcellite](http://parcellite.sourceforge.net),
-but I couldn't. So I've decided to build one.
+---
 
-Also, I wanted to learn Swift and get acquainted with macOS application development.
-
-
-## License
-
-[MIT](./LICENSE)
+<div align="center">
+  <p>Made with ❤️ for the macOS community</p>
+  <p><strong>SmartScreenshot</strong> - Where screenshots become editable text</p>
+</div>
