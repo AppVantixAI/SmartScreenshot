@@ -119,6 +119,37 @@ struct GeneralSettingsPane: View {
           })
         }
       }
+      
+      Settings.Section(
+        title: "Repository Information",
+        bottomDivider: true
+      ) {
+        VStack(alignment: .leading, spacing: 8) {
+          HStack {
+            Text("GitHub Repository:")
+              .font(.headline)
+            Spacer()
+            Link("View on GitHub", destination: URL(string: "https://github.com/AppVantixAI/SmartScreenshot")!)
+              .buttonStyle(.borderedProminent)
+          }
+          
+          Text("Current Version: 2.5.0")
+            .foregroundStyle(.secondary)
+          
+          Text("Repository: AppVantixAI/SmartScreenshot")
+            .foregroundStyle(.secondary)
+          
+          HStack {
+            Text("Update Channel:")
+              .font(.subheadline)
+            Spacer()
+            Text("Stable")
+              .foregroundStyle(.green)
+              .font(.subheadline)
+          }
+        }
+        .padding(.vertical, 4)
+      }
     }
   }
 
