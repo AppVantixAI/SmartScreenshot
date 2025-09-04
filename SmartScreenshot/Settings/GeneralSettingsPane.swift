@@ -61,6 +61,28 @@ struct GeneralSettingsPane: View {
         bottomDivider: true,
         label: { Text("SmartScreenshot OCR") }
       ) {
+        // Auto-OCR Toggle
+        Toggle(isOn: Binding(
+          get: { UserDefaults.standard.bool(forKey: "autoOCREnabled") },
+          set: { newValue in
+            UserDefaults.standard.set(newValue, forKey: "autoOCREnabled")
+            // Restart the app to apply changes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+              NSApp.terminate(nil)
+            }
+          }
+        )) {
+          Text("Enable Automatic Screenshot OCR")
+            .help("Automatically detect new screenshots and extract text to clipboard")
+        }
+        
+        // OCR Notifications Toggle
+        @Default(.showOCRNotifications) var showOCRNotifications
+        Toggle(isOn: $showOCRNotifications) {
+          Text("Show OCR Progress Notifications")
+            .help("Display notifications for OCR progress and completion (can be annoying during heavy use)")
+        }
+        
         KeyboardShortcuts.Recorder(for: .screenshotOCR)
           .help("Take a full screenshot and perform OCR to extract text")
         
@@ -72,6 +94,7 @@ struct GeneralSettingsPane: View {
         
         KeyboardShortcuts.Recorder(for: .bulkOCR)
           .help("Open file picker to select multiple images for bulk OCR processing")
+
       }
 
       Settings.Section(

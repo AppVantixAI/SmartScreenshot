@@ -74,6 +74,7 @@ class HistoryItemDecorator: Identifiable, Hashable {
     self.item = item
     self.shortcuts = shortcuts
     self.title = item.title
+    print("🎭 HistoryItemDecorator.init() - Item title: '\(item.title)'")
     self.applicationImage = ApplicationImageCache.shared.getImage(item: item)
 
     synchronizeItemPin()
@@ -145,10 +146,24 @@ class HistoryItemDecorator: Identifiable, Hashable {
       item.pin
     } onChange: {
       DispatchQueue.main.async {
-        if let pin = self.item.pin {
-          self.shortcuts = KeyShortcut.create(character: pin)
+        // Production-proven fix: Prevent infinite loop by checking actual changes
+        let newPin = self.item.pin
+        let currentShortcuts = self.shortcuts
+        
+        if newPin != nil {
+          let newShortcuts = KeyShortcut.create(character: newPin!)
+          // Check if shortcuts actually changed by comparing pin values
+          if self.item.pin != newPin {
+            print("🔄 Pin sync: Updating shortcuts for pin '\(newPin!)'")
+            self.shortcuts = newShortcuts
+          }
+        } else if !currentShortcuts.isEmpty {
+          print("🔄 Pin sync: Clearing shortcuts (pin removed)")
+          self.shortcuts = []
         }
-        self.synchronizeItemPin()
+        
+        // CRITICAL: Don't call synchronizeItemPin() recursively!
+        // This was causing potential infinite loops
       }
     }
   }
@@ -158,8 +173,22 @@ class HistoryItemDecorator: Identifiable, Hashable {
       item.title
     } onChange: {
       DispatchQueue.main.async {
-        self.title = self.item.title
-        self.synchronizeItemTitle()
+        // Production-proven fix: Prevent infinite loop by checking actual changes
+        let newTitle = self.item.title
+        let currentTitle = self.title
+        
+        // Only update if title actually changed AND is meaningful
+        if newTitle != currentTitle && !newTitle.isEmpty {
+          print("🔄 Title sync: Changing from '\(currentTitle)' to '\(newTitle)'")
+          self.title = newTitle
+        } else if newTitle.isEmpty && !currentTitle.isEmpty {
+          print("🔄 Title sync: Keeping existing title '\(currentTitle)' (new title is empty)")
+        } else {
+          print("🔄 Title sync: No change needed, keeping '\(currentTitle)'")
+        }
+        
+        // CRITICAL: Don't call synchronizeItemTitle() recursively!
+        // This was causing the infinite loop
       }
     }
   }

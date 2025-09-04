@@ -5,6 +5,7 @@ struct ContentView: View {
   @State private var appState = AppState.shared
   @State private var modifierFlags = ModifierFlags()
   @State private var scenePhase: ScenePhase = .background
+  @State private var showingSmartScreenshot = false
 
   @FocusState private var searchFocused: Bool
 
@@ -19,16 +20,23 @@ struct ContentView: View {
             searchQuery: $appState.history.searchQuery
           )
 
-          HistoryListView(
-            searchQuery: $appState.history.searchQuery,
-            searchFocused: $searchFocused
-          )
+          if showingSmartScreenshot {
+            SmartScreenshotMainView()
+              .transition(.slide)
+          } else {
+            HistoryListView(
+              searchQuery: $appState.history.searchQuery,
+              searchFocused: $searchFocused
+            )
+            .transition(.slide)
+          }
 
           FooterView(footer: appState.footer)
         }
       }
       .animation(.default.speed(3), value: appState.history.items)
       .animation(.easeInOut(duration: 0.2), value: appState.searchVisible)
+      .animation(.easeInOut(duration: 0.3), value: showingSmartScreenshot)
       .padding(.horizontal, 5)
       .padding(.vertical, appState.popup.verticalPadding)
       .onAppear {
@@ -68,6 +76,46 @@ struct ContentView: View {
         popover.behavior = .semitransient
       }
     }
+  }
+}
+
+// MARK: - Enhanced Search Field View
+struct EnhancedSearchFieldView: View {
+  let placeholder: LocalizedStringKey
+  @Binding var query: String
+  
+  @State private var isFocused = false
+  
+  var body: some View {
+    TextField(placeholder, text: $query)
+      .padding(12)
+      .background {
+        RoundedRectangle(cornerRadius: 8)
+          .fill(.ultraThinMaterial)
+          .overlay {
+            RoundedRectangle(cornerRadius: 8)
+              .stroke(isFocused ? .blue.opacity(0.5) : .white.opacity(0.2), lineWidth: 1)
+          }
+      }
+      .overlay {
+        HStack {
+          Image(systemName: "magnifyingglass")
+            .foregroundStyle(.secondary)
+            .padding(.leading, 12)
+          
+          Spacer()
+        }
+      }
+      .onReceive(NotificationCenter.default.publisher(for: NSControl.textDidBeginEditingNotification)) { _ in
+        withAnimation(.easeInOut(duration: 0.2)) {
+          isFocused = true
+        }
+      }
+      .onReceive(NotificationCenter.default.publisher(for: NSControl.textDidEndEditingNotification)) { _ in
+        withAnimation(.easeInOut(duration: 0.2)) {
+          isFocused = false
+        }
+      }
   }
 }
 

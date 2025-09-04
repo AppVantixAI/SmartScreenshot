@@ -188,9 +188,14 @@ struct ScreenshotOverlayWindow: NSWindow {
         self.ignoresMouseEvents = false
         self.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         
-        // Make window cover all screens
+        // Make window cover all screens (avoid layout recursion)
         if let screen = NSScreen.main {
-            self.setFrame(screen.frame, display: true)
+            // Use setFrame without display:true to avoid layout recursion
+            self.setFrame(screen.frame, display: false)
+            // Force display update after frame is set
+            DispatchQueue.main.async {
+                self.display()
+            }
         }
     }
     

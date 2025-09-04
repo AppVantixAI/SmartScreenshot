@@ -3,12 +3,26 @@ import Defaults
 import Sauce
 
 class Clipboard {
-  static let shared = Clipboard()
-
+    static let shared = Clipboard()
+  
+  // Smart clipboard coordination to prevent duplicate processing
+  private var isSmartScreenshotProcessing = false
+  private var lastProcessedContentHash = 0
+  
   typealias OnNewCopyHook = (HistoryItem) -> Void
 
   private var onNewCopyHooks: [OnNewCopyHook] = []
   var changeCount: Int
+  private var lastAddedContent: String? = nil
+  
+  // SINGLE POINT OF ENTRY: All clipboard history additions must go through here
+  private var isProcessingClipboardAddition = false
+  private var lastAddedContentHash = 0
+  
+  // Helper function to get current clipboard content for debouncing
+  private func getCurrentContent() -> String? {
+    return pasteboard.string(forType: .string)
+  }
 
   private let pasteboard = NSPasteboard.general
 
@@ -45,6 +59,71 @@ class Clipboard {
 
   func clearHooks() {
     onNewCopyHooks = []
+  }
+  
+  // SINGLE POINT OF ENTRY: All clipboard history additions must go through here
+  @MainActor
+  func addToClipboardHistory(_ historyItem: HistoryItem) -> Bool {
+    // Prevent multiple simultaneous additions
+    guard !isProcessingClipboardAddition else {
+      print("🚫 SINGLE POINT OF ENTRY: Already processing clipboard addition - BLOCKING")
+      return false
+    }
+    
+    // Create content fingerprint for duplicate detection
+    let contentFingerprint = createContentFingerprint(historyItem.contents)
+    
+    // Check if this content was already processed
+    if contentFingerprint == lastAddedContentHash {
+      print("🚫 SINGLE POINT OF ENTRY: Duplicate content detected - BLOCKING")
+      return false
+    }
+    
+    // Mark as processing and add to history
+    isProcessingClipboardAddition = true
+    lastAddedContentHash = contentFingerprint
+    
+    // Add to the main history system
+    History.shared.add(historyItem)
+    
+    // CRITICAL: Force save after adding to ensure persistence
+    Storage.shared.forceSave()
+    
+    // Resume processing after a short delay
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+      self.isProcessingClipboardAddition = false
+    }
+    
+    print("✅ SINGLE POINT OF ENTRY: Added to clipboard history: '\(historyItem.title.prefix(50))...'")
+    return true
+  }
+  
+  // Helper function to create content fingerprint
+  private func createContentFingerprint(_ contents: [HistoryItemContent]) -> Int {
+    var hasher = Hasher()
+    for content in contents.sorted(by: { $0.type < $1.type }) {
+      hasher.combine(content.type)
+      hasher.combine(content.value?.count ?? 0)
+      if let data = content.value {
+        hasher.combine(data.prefix(100)) // Use first 100 bytes for performance
+      }
+    }
+    return hasher.finalize()
+  }
+  
+  // Smart clipboard coordination methods
+  func setSmartScreenshotProcessing(_ isProcessing: Bool) {
+    isSmartScreenshotProcessing = isProcessing
+    if isProcessing {
+      print("🔄 SmartScreenshot is processing - pausing main clipboard monitoring")
+    } else {
+      print("🔄 SmartScreenshot processing complete - resuming main clipboard monitoring")
+    }
+  }
+  
+  func markContentAsProcessed(_ contentHash: Int) {
+    lastProcessedContentHash = contentHash
+    print("🔄 Content marked as processed by SmartScreenshot: \(contentHash)")
   }
 
   func start() {
@@ -148,32 +227,56 @@ class Clipboard {
   @objc
   @MainActor
   func checkForChangesInPasteboard() {
-    guard pasteboard.changeCount != changeCount else {
+    let currentChangeCount = pasteboard.changeCount
+    
+    guard currentChangeCount != changeCount else { return }
+    
+    // Production-proven validation: Check for meaningful content before processing
+    guard let currentContent = getCurrentContent(),
+          !currentContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      print("🚫 Clipboard change detected but content is empty - skipping")
+      changeCount = currentChangeCount
       return
     }
-
-    changeCount = pasteboard.changeCount
-
+    
+    // Smart clipboard coordination: Skip if SmartScreenshot is processing
+    if isSmartScreenshotProcessing {
+      print("🔄 Skipping clipboard processing - SmartScreenshot is handling this content")
+      changeCount = currentChangeCount
+      return
+    }
+    
+    // Debounce: Check if this is the same content as recently added
+    if let currentContent = getCurrentContent(),
+       let lastContent = lastAddedContent,
+       currentContent == lastContent {
+      print("🔄 Debouncing duplicate clipboard content: '\(currentContent.prefix(50))...'")
+      changeCount = currentChangeCount
+      return
+    }
+    
+    // Get the current content for debouncing
+    lastAddedContent = getCurrentContent()
+    
     if Defaults[.ignoreEvents] {
       if Defaults[.ignoreOnlyNextEvent] {
         Defaults[.ignoreEvents] = false
         Defaults[.ignoreOnlyNextEvent] = false
       }
-
       return
     }
-
+    
     // Reading types on NSPasteboard gives all the available
     // types - even the ones that are not present on the NSPasteboardItem.
     // See https://github.com/p0deje/SmartScreenshot/issues/241.
     if shouldIgnore(Set(pasteboard.types ?? [])) {
       return
     }
-
+    
     if let sourceAppBundle = sourceApp?.bundleIdentifier, shouldIgnore(sourceAppBundle) {
       return
     }
-
+    
     // Some applications (BBEdit, Edge) add 2 items to pasteboard when copying
     // so it's better to merge all data into a single record.
     // - https://github.com/p0deje/SmartScreenshot/issues/78
@@ -184,40 +287,45 @@ class Clipboard {
       if types.contains(.string) && isEmptyString(item) && !richText(item) {
         return
       }
-
+      
       if shouldIgnore(item) {
         return
       }
-
+      
       types = types
         .subtracting(disabledTypes)
         .filter { !$0.rawValue.starts(with: dynamicTypePrefix) }
         .filter { !$0.rawValue.starts(with: microsoftSourcePrefix) }
-
+      
       // Avoid reading Microsoft Word links from bookmarks and cross-references.
       // https://github.com/p0deje/SmartScreenshot/issues/613
       // https://github.com/p0deje/SmartScreenshot/issues/770
       if types.isSuperset(of: [.microsoftLinkSource, .microsoftObjectLink]) {
         types = types.subtracting([.microsoftLinkSource, .microsoftObjectLink, .pdf])
       }
-
+      
       types.forEach { type in
         contents.append(HistoryItemContent(type: type.rawValue, value: item.data(forType: type)))
       }
     })
-
+    
     guard !contents.isEmpty else {
       return
     }
-
+    
     let historyItem = HistoryItem(contents: contents)
-    Storage.shared.context.insert(historyItem)
-    try? Storage.shared.context.save()
-
     historyItem.application = sourceApp?.bundleIdentifier
     historyItem.title = historyItem.generateTitle()
-
-    onNewCopyHooks.forEach({ $0(historyItem) })
+    
+    // Use SINGLE POINT OF ENTRY to prevent duplicates
+    let success = addToClipboardHistory(historyItem)
+    if success {
+      print("✅ Main clipboard: Successfully added via single point of entry")
+    } else {
+      print("🚫 Main clipboard: Duplicate blocked by single point of entry")
+    }
+    
+    changeCount = currentChangeCount
   }
 
   private func shouldIgnore(_ types: Set<NSPasteboard.PasteboardType>) -> Bool {

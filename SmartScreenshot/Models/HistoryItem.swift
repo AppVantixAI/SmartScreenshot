@@ -232,4 +232,25 @@ class HistoryItem {
 
     self.title = recognizedStrings.joined(separator: "\n")
   }
+
+  // MARK: - Validation Helper
+  
+  /// Production-standard validation: Check if this item is valid before saving
+  public func isValidForSaving() -> Bool {
+    // Validate title is not empty
+    let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmedTitle.isEmpty {
+      print("🚫 Validation failed: Cannot save HistoryItem with empty title")
+      return false
+    }
+    
+    // Validate contents are not empty
+    if contents.isEmpty {
+      print("🚫 Validation failed: Cannot save HistoryItem with no contents")
+      return false
+    }
+    
+    print("✅ HistoryItem validation passed: '\(trimmedTitle.prefix(50))...'")
+    return true
+  }
 }

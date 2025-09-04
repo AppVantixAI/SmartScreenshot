@@ -100,39 +100,34 @@ class AIOCRService: ObservableObject {
         
         let startTime = Date()
         
-        do {
-            let result: OCRResult?
-            
-            switch selectedModel {
-            case .appleVision:
-                result = await performAppleVisionOCR(on: image)
-            case .openAI:
-                result = await performOpenAIOCR(on: image)
-            case .claude:
-                result = await performClaudeOCR(on: image)
-            case .gemini:
-                result = await performGeminiOCR(on: image)
-            case .grok:
-                result = await performGrokOCR(on: image)
-            case .deepseek:
-                result = await performDeepSeekOCR(on: image)
-            }
-            
-            if let result = result {
-                let processingTime = Date().timeIntervalSince(startTime)
-                return OCRResult(
-                    text: result.text,
-                    confidence: result.confidence,
-                    model: selectedModel,
-                    processingTime: processingTime,
-                    regions: result.regions,
-                    image: image,
-                    timestamp: Date()
-                )
-            }
-            
-        } catch {
-            print("❌ AI OCR Error: \(error.localizedDescription)")
+        let result: OCRResult?
+        
+        switch selectedModel {
+        case .appleVision:
+            result = await performAppleVisionOCR(on: image)
+        case .openAI:
+            result = await performOpenAIOCR(on: image)
+        case .claude:
+            result = await performClaudeOCR(on: image)
+        case .gemini:
+            result = await performGeminiOCR(on: image)
+        case .grok:
+            result = await performGrokOCR(on: image)
+        case .deepseek:
+            result = await performDeepSeekOCR(on: image)
+        }
+        
+        if let result = result {
+            let processingTime = Date().timeIntervalSince(startTime)
+            return OCRResult(
+                text: result.text,
+                confidence: result.confidence,
+                model: selectedModel,
+                processingTime: processingTime,
+                regions: result.regions,
+                image: image,
+                timestamp: Date()
+            )
         }
         
         return nil
@@ -144,7 +139,7 @@ class AIOCRService: ObservableObject {
             return nil
         }
         
-        return await withCheckedContinuation { continuation in
+        return await withCheckedContinuation { (continuation: CheckedContinuation<OCRResult?, Never>) in
             let request = VNRecognizeTextRequest { [weak self] request, error in
                 if let error = error {
                     print("❌ Apple Vision OCR Error: \(error.localizedDescription)")
@@ -164,8 +159,13 @@ class AIOCRService: ObservableObject {
                         text: topCandidate.string,
                         confidence: topCandidate.confidence,
                         boundingBox: observation.boundingBox,
-                        language: topCandidate.language
+                        language: nil
                     )
+                }
+                
+                guard !regions.isEmpty else {
+                    continuation.resume(returning: nil)
+                    return
                 }
                 
                 let recognizedText = regions.map { $0.text }.joined(separator: "\n")
@@ -188,12 +188,8 @@ class AIOCRService: ObservableObject {
             request.usesLanguageCorrection = true
             request.recognitionLanguages = ["en-US", "en-GB", "es-ES", "fr-FR", "de-DE", "it-IT", "pt-BR", "ja-JP", "ko-KR", "zh-CN", "zh-TW"]
             
-            if #available(macOS 13.0, *) {
-                request.revision = VNRecognizeTextRequestRevision3
-                request.automaticallyDetectsLanguage = true
-            } else if #available(macOS 11.0, *) {
-                request.revision = VNRecognizeTextRequestRevision2
-            }
+            request.revision = VNRecognizeTextRequestRevision3
+            request.automaticallyDetectsLanguage = true
             
             let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
             

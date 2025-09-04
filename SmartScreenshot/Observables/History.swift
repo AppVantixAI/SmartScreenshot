@@ -109,10 +109,13 @@ class History { // swiftlint:disable:this type_body_length
 
   @MainActor
   func load() async throws {
-    let descriptor = FetchDescriptor<HistoryItem>()
-    let results = try Storage.shared.context.fetch(descriptor)
-    all = sorter.sort(results).map { HistoryItemDecorator($0) }
-    items = all
+          let descriptor = FetchDescriptor<HistoryItem>()
+      let results = try Storage.shared.context.fetch(descriptor)
+      
+      // Sort items chronologically with most recent first, then create decorators
+      let sortedItems = sorter.sort(results)
+      all = sortedItems.map { HistoryItemDecorator($0) }
+      items = all
 
     updateShortcuts()
     // Ensure that panel size is proper *after* loading all items.
@@ -124,19 +127,48 @@ class History { // swiftlint:disable:this type_body_length
   @discardableResult
   @MainActor
   func add(_ item: HistoryItem) -> HistoryItemDecorator {
+    print("🔍 History.add() called for item: '\(item.title.prefix(50))...'")
+    print("📋 Item Details:")
+    print("   - Title: '\(item.title)'")
+    print("   - Title length: \(item.title.count)")
+    print("   - Contents count: \(item.contents.count)")
+    print("   - First copied: \(item.firstCopiedAt)")
+    print("   - Last copied: \(item.lastCopiedAt)")
+    print("   - Has image: \(item.image != nil)")
+    print("   - Has text: \(item.text != nil)")
+    print("   - Has file URLs: \(item.fileURLs.count)")
+    print("   - From SmartScreenshot: \(item.fromSmartScreenshot)")
+    
+    // Log each content item
+    for (index, content) in item.contents.enumerated() {
+      print("   - Content[\(index)]: type='\(content.type)', data size=\(content.value?.count ?? 0)")
+      if let textData = content.value,
+         content.type == NSPasteboard.PasteboardType.string.rawValue,
+         let text = String(data: textData, encoding: .utf8) {
+        print("     Text preview: '\(text.prefix(100))'")
+      }
+    }
+    
+    // Production-proven validation: Check if item is valid before adding
+    guard item.isValidForSaving() else {
+      print("🚫 Skipping invalid item: '\(item.title.prefix(50))...'")
+      // Return a placeholder decorator to prevent crashes
+      return HistoryItemDecorator(item)
+    }
+
     while all.filter(\.isUnpinned).count >= Defaults[.size] {
       delete(all.last(where: \.isUnpinned))
     }
 
     var removedItemIndex: Int?
     if let existingHistoryItem = findSimilarItem(item) {
-      if isModified(item) == nil {
-        item.contents = existingHistoryItem.contents
-      }
+      print("🔄 Found duplicate item, merging: '\(existingHistoryItem.title.prefix(50))...'")
+      // Preserve the NEW item's content, don't overwrite it with old content
+      // Only copy metadata that should be preserved
       item.firstCopiedAt = existingHistoryItem.firstCopiedAt
       item.numberOfCopies += existingHistoryItem.numberOfCopies
       item.pin = existingHistoryItem.pin
-      item.title = existingHistoryItem.title
+      // Don't overwrite title or contents - keep the new ones
       if !item.fromSmartScreenshot {
         item.application = existingHistoryItem.application
       }
@@ -146,12 +178,17 @@ class History { // swiftlint:disable:this type_body_length
         all.remove(at: removedItemIndex)
       }
     } else {
+      print("✨ Adding new item: '\(item.title.prefix(50))...'")
       Task {
         Notifier.notify(body: item.title, sound: .write)
       }
     }
 
     sessionLog[Clipboard.shared.changeCount] = item
+
+    // CRITICAL: Insert the new item into SwiftData context for persistence
+    Storage.shared.context.insert(item)
+    NSLog("🔄 SwiftData: Inserted HistoryItem into context: '\(item.title.prefix(50))...'")
 
     var itemDecorator: HistoryItemDecorator
     if let pin = item.pin {
@@ -163,15 +200,21 @@ class History { // swiftlint:disable:this type_body_length
     } else {
       itemDecorator = HistoryItemDecorator(item)
 
-      let sortedItems = sorter.sort(all.map(\.item) + [item])
-      if let index = sortedItems.firstIndex(of: item) {
-        all.insert(itemDecorator, at: index)
+      // Add to the beginning of the array for most recent items
+      all.insert(itemDecorator, at: 0)
+      
+      // Re-sort the entire array to maintain proper chronological order
+      all = sorter.sort(all.map(\.item)).map { item in
+        all.first { $0.item == item } ?? HistoryItemDecorator(item)
       }
 
       items = all
       updateUnpinnedShortcuts()
       AppState.shared.popup.needsResize = true
     }
+    
+    // CRITICAL: Save context after adding item to ensure persistence
+    Storage.shared.saveContext()
 
     return itemDecorator
   }

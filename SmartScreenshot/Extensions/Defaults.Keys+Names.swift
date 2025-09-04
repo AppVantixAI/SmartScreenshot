@@ -59,4 +59,12 @@ extension Defaults.Keys {
   static let windowPosition = Key<NSPoint>("windowPosition", default: NSPoint(x: 0.5, y: 0.8))
   static let showApplicationIcons = Key<Bool>("showApplicationIcons", default: false)
   static let showSmartScreenshot = Key<Bool>("showSmartScreenshot", default: true)
+  static let showOCRNotifications = Key<Bool>("showOCRNotifications", default: false)
+  
+  // Auto OCR Settings
+  static let autoOCREnabled = Key<Bool>("autoOCREnabled", default: true)
+  static let screenshotDirectory = Key<String>("screenshotDirectory", default: "")
+  static let autoOCRNotificationSound = Key<Bool>("autoOCRNotificationSound", default: true)
+  static let autoOCRShowPreview = Key<Bool>("autoOCRShowPreview", default: true)
+  static let autoOCRConfidenceThreshold = Key<Double>("autoOCRConfidenceThreshold", default: 0.5)
 }

@@ -4,7 +4,7 @@ import Foundation
 import Settings
 
 @Observable
-class AppState: Sendable {
+class AppState {
   static let shared = AppState()
 
   var appDelegate: AppDelegate?
@@ -196,7 +196,8 @@ class AppState: Sendable {
             toolbarIcon: NSImage.gearshape2!
           ) {
             AdvancedSettingsPane()
-          }
+          },
+
         ]
       )
     }

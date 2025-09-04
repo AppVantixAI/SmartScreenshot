@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import SwiftData
+import Combine
 
 // MARK: - Screenshot Clipboard Item
 @Model
@@ -274,15 +275,72 @@ class ScreenshotClipboardManager: ObservableObject {
     }
     
     private func loadItems() {
-        // Load from UserDefaults or Core Data
-        // This is a simplified implementation
-        items = []
+        // Load from UserDefaults with proper error handling
+        guard let data = UserDefaults.standard.data(forKey: "ScreenshotClipboardItems"),
+              let decodedItems = try? JSONDecoder().decode([ScreenshotClipboardItemData].self, from: data) else {
+            print("No saved screenshot items found or failed to decode")
+            items = []
+            return
+        }
+        
+        // Convert saved data back to ScreenshotClipboardItem objects
+        items = decodedItems.compactMap { itemData in
+            guard let image = NSImage(data: itemData.imageData) else { return nil }
+            
+            let item = ScreenshotClipboardItem(
+                image: image,
+                ocrText: itemData.ocrText,
+                confidence: itemData.confidence,
+                model: itemData.model,
+                processingTime: itemData.processingTime
+            )
+            item.timestamp = itemData.timestamp
+            item.isPinned = itemData.isPinned
+            item.tags = itemData.tags
+            item.notes = itemData.notes
+            return item
+        }
+        
+        print("✅ Loaded \(items.count) screenshot items from storage")
     }
     
     private func saveItems() {
-        // Save to UserDefaults or Core Data
-        // This is a simplified implementation
+        // Convert items to saveable format
+        let itemsData = items.map { item in
+            ScreenshotClipboardItemData(
+                imageData: item.image,
+                ocrText: item.ocrText,
+                confidence: item.confidence,
+                model: item.model,
+                processingTime: item.processingTime,
+                timestamp: item.timestamp,
+                isPinned: item.isPinned,
+                tags: item.tags,
+                notes: item.notes
+            )
+        }
+        
+        do {
+            let data = try JSONEncoder().encode(itemsData)
+            UserDefaults.standard.set(data, forKey: "ScreenshotClipboardItems")
+            print("✅ Saved \(items.count) screenshot items to storage")
+        } catch {
+            print("❌ Failed to save screenshot items: \(error.localizedDescription)")
+        }
     }
+}
+
+// MARK: - Saveable Data Structure
+private struct ScreenshotClipboardItemData: Codable {
+    let imageData: Data
+    let ocrText: String
+    let confidence: Float
+    let model: String
+    let processingTime: TimeInterval
+    let timestamp: Date
+    let isPinned: Bool
+    let tags: [String]
+    let notes: String?
 }
 
 // MARK: - Extensions
@@ -298,4 +356,9 @@ extension ScreenshotClipboardItem: Hashable {
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
     }
+}
+
+// MARK: - Global Screenshot Clipboard Manager Instance
+extension ScreenshotClipboardManager {
+    static let shared = ScreenshotClipboardManager()
 }

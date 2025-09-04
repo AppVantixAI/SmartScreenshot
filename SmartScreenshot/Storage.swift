@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import AppKit
 
 @MainActor
 class Storage {
@@ -31,5 +32,67 @@ class Storage {
     } catch let error {
       fatalError("Cannot load database: \(error.localizedDescription).")
     }
+
+    setupAutomaticSaving()
+  }
+
+  // MARK: - Automatic Saving
+  
+  private func setupAutomaticSaving() {
+    // Save context when app goes to background
+    NotificationCenter.default.addObserver(
+      forName: NSApplication.willResignActiveNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      Task { @MainActor in
+        self?.saveContext()
+      }
+    }
+    
+    // Save context when app terminates
+    NotificationCenter.default.addObserver(
+      forName: NSApplication.willTerminateNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      Task { @MainActor in
+        self?.saveContext()
+      }
+    }
+    
+    // Save context when app goes to background
+    NotificationCenter.default.addObserver(
+      forName: NSApplication.didHideNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      Task { @MainActor in
+        self?.saveContext()
+      }
+    }
+    
+    // Set up periodic saving every 30 seconds to ensure data persistence
+    Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+      Task { @MainActor in
+        self?.saveContext()
+      }
+    }
+  }
+  
+  /// Save the context with error handling
+  func saveContext() {
+    do {
+      try context.save()
+      print("✅ Storage: Context saved successfully")
+    } catch {
+      print("❌ Storage: Failed to save context: \(error.localizedDescription)")
+    }
+  }
+  
+  /// Force save the context immediately
+  func forceSave() {
+    context.processPendingChanges()
+    saveContext()
   }
 }

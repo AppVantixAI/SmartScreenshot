@@ -89,9 +89,11 @@ class FloatingPanel<Content: View>: NSPanel, NSWindowDelegate {
     var newOrigin = frame.origin
     newOrigin.y += (frame.height - newSize.height)
 
+    // Fix layout recursion: Use setFrame directly instead of animator()
     NSAnimationContext.runAnimationGroup { (context) in
       context.duration = 0.2
-      animator().setFrame(NSRect(origin: newOrigin, size: newSize), display: true)
+      context.allowsImplicitAnimation = true
+      setFrame(NSRect(origin: newOrigin, size: newSize), display: true, animate: true)
     }
   }
 

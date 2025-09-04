@@ -12,22 +12,48 @@ struct HeaderView: View {
   @Default(.showSmartScreenshot) private var showSmartScreenshot
 
   var body: some View {
-    HStack {
-      if showTitle {
-        Text("SmartScreenshot")
-          .foregroundStyle(.secondary)
-      }
-
-      SearchFieldView(placeholder: "search_placeholder", query: $searchQuery)
-        .focused($searchFocused)
-        .frame(maxWidth: .infinity)
-        .onChange(of: scenePhase) {
-          if scenePhase == .background && !searchQuery.isEmpty {
-            searchQuery = ""
+    VStack(spacing: 4) {
+      HStack {
+        if showTitle {
+          VStack(alignment: .leading, spacing: 2) {
+            Text("SmartScreenshot")
+              .font(.headline)
+              .foregroundStyle(.primary)
+            
+            Text("Auto-OCR Screenshot Text Extraction")
+              .font(.caption)
+              .foregroundStyle(.secondary)
           }
         }
+
+        Spacer()
+
+        SearchFieldView(placeholder: "search_placeholder", query: $searchQuery)
+          .focused($searchFocused)
+          .frame(maxWidth: .infinity)
+          .onChange(of: scenePhase) {
+            if scenePhase == .background && !searchQuery.isEmpty {
+              searchQuery = ""
+            }
+          }
+      }
+      
+      // Status bar showing item count and last activity
+      HStack {
+        Text("\(appState.history.items.count) items")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+        
+        Spacer()
+        
+        if let lastItem = appState.history.items.first {
+          Text("Last: \(lastItem.item.lastCopiedAt, style: .relative)")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+      }
     }
-    .frame(height: appState.searchVisible ? 25 : 0)
+    .frame(height: appState.searchVisible ? 45 : 0)
     .opacity(appState.searchVisible ? 1 : 0)
     .padding(.horizontal, 10)
     // 2px is needed to prevent items from showing behind top pinned items during scrolling

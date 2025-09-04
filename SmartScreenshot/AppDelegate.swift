@@ -4,6 +4,7 @@ import Sparkle
 import SwiftUI
 import Vision
 import UserNotifications
+import CoreServices
 
 // MARK: - NSWindow Extension for Window ID
 extension NSWindow {
@@ -17,19 +18,126 @@ extension NSWindow {
   }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+@MainActor
+class AppDelegate: NSObject, NSApplicationDelegate, Sendable {
   var panel: FloatingPanel<ContentView>!
+  
+  // Screenshot monitoring
+  private var screenshotMonitoringTimer: Timer?
+  private var lastProcessedScreenshots = Set<String>()
 
+  // MARK: - Multi-Screen Menubar Support
+  private var additionalStatusItems: [NSStatusItem] = []
+  private var screenObserver: NSKeyValueObservation?
+  
   @objc
   private lazy var statusItem: NSStatusItem = {
-    let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    // Try to force the status item to appear in the menubar with a specific length
+    let statusItem = NSStatusBar.system.statusItem(withLength: 24.0)
     statusItem.behavior = .removalAllowed
     statusItem.button?.action = #selector(performStatusItemClick)
     statusItem.button?.image = Defaults[.menuIcon].image
     statusItem.button?.imagePosition = .imageLeft
     statusItem.button?.target = self
+    
+    // Force the status item to be visible in the menubar
+    statusItem.isVisible = true
+    
+    // Try to force the status item to appear in the menubar instead of control center
+    if #available(macOS 15.0, *) {
+      // On macOS 15+, try to force menubar visibility
+      statusItem.button?.isHidden = false
+      statusItem.button?.alphaValue = 1.0
+      
+      // Try to force the status item to be in the menubar
+      statusItem.button?.title = " "  // Add a space to ensure it's visible
+      statusItem.button?.imagePosition = .imageLeft
+      
+      // Force a layout update
+      statusItem.button?.needsLayout = true
+      statusItem.button?.needsDisplay = true
+    }
+    
+    // Debug logging
+    print("🔧 Status item created with length: \(statusItem.length)")
+    print("🔧 Status item button image: \(String(describing: statusItem.button?.image))")
+    print("🔧 Status item button frame: \(String(describing: statusItem.button?.frame))")
+    print("🔧 Status item isVisible: \(statusItem.isVisible)")
+    print("🔧 Status item button isHidden: \(String(describing: statusItem.button?.isHidden))")
+    print("🔧 Status item button alphaValue: \(String(describing: statusItem.button?.alphaValue))")
+    print("🔧 Status item button title: \(String(describing: statusItem.button?.title))")
+    
     return statusItem
   }()
+
+  // MARK: - Multi-Screen Menubar Management
+  
+  private func setupMultiScreenMenubar() {
+    NSLog("🖥️ Setting up high-priority menubar support")
+    
+    // Remove any additional status items (keep the main statusItem)
+    removeAdditionalStatusItems()
+    
+    // Configure the existing statusItem for high priority
+    configureExistingStatusItemForHighPriority()
+    
+    // Set up screen change monitoring for tooltip updates
+    setupScreenChangeMonitoring()
+  }
+  
+  private func configureExistingStatusItemForHighPriority() {
+    let screens = NSScreen.screens
+    NSLog("🖥️ Configuring existing statusItem for high-priority display on \(screens.count) screen(s)")
+    
+    // Configure the existing statusItem with highest priority settings
+    statusItem.behavior = [.removalAllowed]
+    statusItem.isVisible = true
+    statusItem.button?.isHidden = false
+    statusItem.button?.alphaValue = 1.0
+    
+    // Enhanced tooltip for multi-screen awareness
+    let screenCount = screens.count
+    statusItem.button?.toolTip = "SmartScreenshot - Active on \(screenCount) screen\(screenCount == 1 ? "" : "s")"
+    
+    NSLog("✅ Configured existing statusItem for high-priority display")
+  }
+  
+  private func removeAdditionalStatusItems() {
+    NSLog("🗑️ Removing any additional menubar icons")
+    for statusItem in additionalStatusItems {
+      NSStatusBar.system.removeStatusItem(statusItem)
+    }
+    additionalStatusItems.removeAll()
+  }
+  
+  private func setupScreenChangeMonitoring() {
+    // Listen for screen configuration changes
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(screenConfigurationChanged),
+      name: NSApplication.didChangeScreenParametersNotification,
+      object: nil
+    )
+    
+    NSLog("👁️ Screen change monitoring enabled")
+  }
+  
+  @objc private func screenConfigurationChanged() {
+    NSLog("🔄 Screen configuration changed, updating menubar tooltip")
+    
+    // Debounce rapid changes and update tooltip for new screen count
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+      self?.updateMenubarTooltipForScreens()
+    }
+  }
+  
+  private func updateMenubarTooltipForScreens() {
+    let screens = NSScreen.screens
+    let screenCount = screens.count
+    statusItem.button?.toolTip = "SmartScreenshot - Active on \(screenCount) screen\(screenCount == 1 ? "" : "s")"
+    
+    NSLog("📝 Updated menubar tooltip for \(screenCount) screen(s)")
+  }
 
   private var isStatusItemDisabled: Bool {
     Defaults[.ignoreEvents] || Defaults[.enabledPasteboardTypes].isEmpty
@@ -51,7 +159,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Bridge FloatingPanel via AppDelegate.
     AppState.shared.appDelegate = self
 
-    Clipboard.shared.onNewCopy { History.shared.add($0) }
+    // Hook removed - main clipboard now handles all additions through single point of entry
+  // Clipboard.shared.onNewCopy { History.shared.add($0) }
     Clipboard.shared.start()
 
     Task {
@@ -66,18 +175,56 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       }
     }
 
+    // Force the status item to be created immediately
+    _ = statusItem
+    
+    // Set initial visibility
+    print("🔧 Setting initial status item visibility to: \(Defaults[.showInStatusBar])")
+    print("🔧 Status item object: \(statusItem)")
+    print("🔧 Status item button: \(String(describing: statusItem.button))")
+    statusItem.isVisible = Defaults[.showInStatusBar]
+    print("🔧 Status item visibility after setting: \(statusItem.isVisible)")
+    print("🔧 Status item length: \(statusItem.length)")
+    
+    // Force the status item to be visible and in the menubar
+    if #available(macOS 15.0, *) {
+      print("🔧 macOS 15+ detected, forcing menubar visibility")
+      statusItem.isVisible = true
+      statusItem.button?.isHidden = false
+      statusItem.button?.alphaValue = 1.0
+      
+      // Try to force it to appear in the menubar
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        print("🔧 Delayed visibility enforcement")
+        self.statusItem.isVisible = true
+        self.statusItem.button?.isHidden = false
+        self.statusItem.button?.needsLayout = true
+        self.statusItem.button?.needsDisplay = true
+      }
+    }
+    
     Task {
       for await value in Defaults.updates(.showInStatusBar) {
         statusItem.isVisible = value
       }
     }
 
+    // Set initial image
+    statusItem.button?.image = Defaults[.menuIcon].image
+    
     Task {
       for await value in Defaults.updates(.menuIcon, initial: false) {
         statusItem.button?.image = value.image
       }
     }
 
+    // Set initial title
+    if Defaults[.showRecentCopyInMenuBar] {
+      statusItem.button?.title = AppState.shared.menuIconText
+    } else {
+      statusItem.button?.title = ""
+    }
+    
     synchronizeMenuIconText()
     Task {
       for await value in Defaults.updates(.showRecentCopyInMenuBar) {
@@ -89,6 +236,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       }
     }
 
+    // Set initial disabled state
+    statusItem.button?.appearsDisabled = isStatusItemDisabled
+    
     Task {
       for await _ in Defaults.updates(.ignoreEvents) {
         statusItem.button?.appearsDisabled = isStatusItemDisabled
@@ -103,10 +253,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   func applicationDidFinishLaunching(_ aNotification: Notification) {
+    NSLog("🚀 DEBUG: applicationDidFinishLaunching started")
     migrateUserDefaults()
     disableUnusedGlobalHotkeys()
     setupSmartScreenshotMenu()
     setupSmartScreenshotHotkeys()
+    
+    // Request accessibility permissions for global hotkeys and status bar
+    requestAccessibilityPermissions()
+    
+    // Initialize and start the screenshot monitor service if enabled
+    initializeScreenshotMonitor()
+    
+    // Setup multi-screen menubar support  
+    setupMultiScreenMenubar()
 
     panel = FloatingPanel(
       contentRect: NSRect(origin: .zero, size: Defaults[.windowSize]),
@@ -127,6 +287,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     if Defaults[.clearOnQuit] {
       AppState.shared.history.clear()
     }
+    
+    // Stop screenshot monitoring
+    screenshotMonitoringTimer?.invalidate()
+    screenshotMonitoringTimer = nil
+    
+    // Cleanup additional menubar items
+    removeAdditionalStatusItems()
+    NotificationCenter.default.removeObserver(self)
   }
 
   private func migrateUserDefaults() {
@@ -201,6 +369,444 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
   }
   
+  // MARK: - Screenshot Monitor Initialization
+  
+  private func initializeScreenshotMonitor() {
+    NSLog("🔍 DEBUG: initializeScreenshotMonitor() called")
+    
+    // Check if auto-OCR is enabled in user defaults
+    let autoOCREnabled = UserDefaults.standard.bool(forKey: "autoOCREnabled")
+    NSLog("🔍 DEBUG: autoOCREnabled = \(autoOCREnabled)")
+    
+    if autoOCREnabled {
+      NSLog("🔄 Auto-OCR is enabled, starting screenshot monitor...")
+      startScreenshotMonitoring()
+    } else {
+      NSLog("🔄 Auto-OCR is disabled, screenshot monitor will not start automatically")
+    }
+  }
+  
+  private func startScreenshotMonitoring() {
+    // Stop any existing timer
+    screenshotMonitoringTimer?.invalidate()
+    
+    // Start monitoring the screenshot directory
+    let screenshotPath = UserDefaults.standard.string(forKey: "screenshotDirectory") ?? NSHomeDirectory() + "/Desktop"
+    
+    NSLog("📸 Starting screenshot monitoring for directory: \(screenshotPath)")
+    
+    // Use a timer-based approach to check for new screenshots
+    screenshotMonitoringTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+      Task { @MainActor in
+        self?.checkForNewScreenshots(in: screenshotPath)
+      }
+    }
+    
+    NSLog("✅ Screenshot monitoring started successfully")
+  }
+  
+  private func checkForNewScreenshots(in directory: String) {
+    let fileManager = FileManager.default
+    
+    do {
+      let files = try fileManager.contentsOfDirectory(atPath: directory)
+      let imageFiles = files.filter { $0.hasSuffix(".png") || $0.hasSuffix(".jpg") || $0.hasSuffix(".jpeg") }
+      
+      NSLog("🔍 Checking \(imageFiles.count) image files in \(directory)")
+      
+      for imageFile in imageFiles {
+        let fullPath = (directory as NSString).appendingPathComponent(imageFile)
+        
+        // Skip if we already processed this screenshot
+        if lastProcessedScreenshots.contains(fullPath) {
+          continue
+        }
+        
+        // Check if this is a new file (created in the last 10 seconds)
+        if let attributes = try? fileManager.attributesOfItem(atPath: fullPath),
+           let creationDate = attributes[.creationDate] as? Date,
+           Date().timeIntervalSince(creationDate) < 10.0 {
+          
+          NSLog("🔄 New screenshot detected: \(imageFile)")
+          lastProcessedScreenshots.insert(fullPath)
+          
+          // Clean up old processed screenshots (keep only last 50)
+          if lastProcessedScreenshots.count > 50 {
+            let toRemove = Array(lastProcessedScreenshots.prefix(lastProcessedScreenshots.count - 50))
+            lastProcessedScreenshots.subtract(toRemove)
+          }
+          
+          processNewScreenshot(at: fullPath)
+        }
+      }
+    } catch {
+      NSLog("❌ Error checking directory: \(error)")
+    }
+  }
+  
+  private func processNewScreenshot(at path: String) {
+    NSLog("🔄 Processing new screenshot: \(path)")
+    
+    // Load the image
+    guard let image = NSImage(contentsOfFile: path) else {
+      NSLog("❌ Failed to load image from: \(path)")
+      return
+    }
+    
+    // Perform enhanced OCR and content analysis
+    performEnhancedOCROnImage(image) { extractedText in
+      if let text = extractedText, !text.isEmpty {
+        NSLog("✅ Enhanced OCR extracted text: \(text.prefix(100))...")
+        
+        // Perform smart content analysis
+        let analysis = self.analyzeScreenshotContent(text, image: image)
+        
+        // Copy text to clipboard
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        
+        // Show enhanced notification with content insights
+        self.showEnhancedNotification(analysis: analysis, text: text)
+        
+        // Add to clipboard history with metadata
+        DispatchQueue.main.async {
+          self.addToClipboardHistoryWithMetadata(text, analysis: analysis)
+        }
+        
+        // Store analysis for future reference
+        self.storeContentAnalysis(analysis, for: path)
+        
+      } else {
+        print("❌ No text found in screenshot")
+        self.showNotification(
+          title: "SmartScreenshot OCR",
+          body: "No text found in screenshot"
+        )
+      }
+    }
+  }
+  
+  @objc private func toggleAutoOCR() {
+    let isCurrentlyEnabled = UserDefaults.standard.bool(forKey: "autoOCREnabled")
+    let newState = !isCurrentlyEnabled
+    
+    UserDefaults.standard.set(newState, forKey: "autoOCREnabled")
+    
+    if newState {
+      startScreenshotMonitoring()
+      showNotification(
+        title: "SmartScreenshot",
+        body: "Automatic OCR has been enabled"
+      )
+    } else {
+      showNotification(
+        title: "SmartScreenshot",
+        body: "Automatic OCR has been disabled"
+      )
+    }
+    
+    // Update menu
+    setupSmartScreenshotMenu()
+  }
+  
+  private func performOCROnImage(_ image: NSImage, completion: @escaping (String?) -> Void) {
+    // Use enhanced OCR for better accuracy
+    performEnhancedOCROnImage(image, completion: completion)
+  }
+  
+  // MARK: - Enhanced Notifications & Clipboard Management
+  
+  // MARK: - Enhanced Notifications & Clipboard Management
+  
+  /// Shows enhanced notification with content insights
+  private func showEnhancedNotification(analysis: Any, text: String) {
+    let title = "SmartScreenshot OCR Complete"
+    let body = """
+    📝 Content Analysis
+    🏷️ Tags: [AI/OCR temporarily disabled]
+    📍 Location: [AI/OCR temporarily disabled]
+    🌐 Language: [AI/OCR temporarily disabled]
+    """
+    
+    showNotification(title: title, body: body)
+    
+    // Show additional notification for sensitive content
+    showNotification(
+      title: "⚠️ AI/OCR Temporarily Disabled",
+      body: "Content analysis features are temporarily disabled for debugging."
+    )
+  }
+  
+  /// Adds text to clipboard history with metadata
+  @MainActor
+  private func addToClipboardHistoryWithMetadata(_ text: String, analysis: Any) {
+    // Add to clipboard history
+    addToClipboardHistory(text)
+    
+    // Store analysis metadata (temporarily disabled)
+    let metadata = [
+      "contentType": "unknown",
+      "tags": ["AI/OCR temporarily disabled"],
+      "language": "unknown",
+      "location": "unknown",
+      "confidence": 0.0,
+      "analyzedAt": Date()
+    ] as [String : Any]
+    
+    UserDefaults.standard.set(metadata, forKey: "clipboard_metadata_\(text.hash)")
+  }
+  
+  /// Stores content analysis for future reference
+  private func storeContentAnalysis(_ analysis: Any, for path: String) {
+    // Temporarily disabled for debugging
+    let key = "screenshot_analysis_\(path.hash)"
+    UserDefaults.standard.set("AI/OCR temporarily disabled", forKey: key)
+    
+    print("💾 Content analysis temporarily disabled for: \(path)")
+  }
+  
+  // MARK: - Smart Content Analysis
+  
+  /// Analyzes screenshot content using AI-powered insights
+  private func analyzeScreenshotContent(_ text: String, image: NSImage) -> Any {
+    // Temporarily disabled for debugging
+    let analysis = [
+      "textContent": text,
+      "analyzedAt": Date(),
+      "contentType": "unknown",
+      "suggestedTags": ["AI/OCR temporarily disabled"],
+      "detectedLanguage": "unknown",
+      "containsSensitiveInfo": false,
+      "summary": "AI/OCR temporarily disabled",
+      "suggestedLocation": "unknown",
+      "confidence": 0.0
+    ] as [String : Any]
+    
+    print("🧠 Smart analysis temporarily disabled")
+    
+    return analysis
+  }
+  
+  /// Shows a notification to the user
+  private func showNotification(title: String, body: String) {
+    // Check if OCR notifications are enabled
+    @Default(.showOCRNotifications) var showOCRNotifications
+    guard showOCRNotifications else {
+      // Just print to console for debugging when notifications are disabled
+      print("🔔 Notification (disabled): \(title) - \(body)")
+      return
+    }
+    
+    // Use modern notification system
+    let content = UNMutableNotificationContent()
+    content.title = title
+    content.body = body
+    content.sound = UNNotificationSound.default
+    
+    let request = UNNotificationRequest(
+      identifier: UUID().uuidString,
+      content: content,
+      trigger: nil
+    )
+    
+    UNUserNotificationCenter.current().add(request) { error in
+      if let error = error {
+        print("❌ Failed to show notification: \(error.localizedDescription)")
+      }
+    }
+    
+    // Also print to console for debugging
+    print("🔔 Notification: \(title) - \(body)")
+  }
+  
+  /// Detects the type of content in the screenshot
+  private func detectContentType(from text: String) -> String {
+    let lowercasedText = text.lowercased()
+    
+    // Check for code content
+    let codeKeywords = ["function", "class", "import", "export", "const", "let", "var", "def", "return", "if", "else", "for", "while"]
+    if codeKeywords.contains(where: { lowercasedText.contains($0) }) {
+      return "code"
+    }
+    
+    // Check for error content
+    let errorKeywords = ["error", "exception", "crash", "failed", "warning", "alert", "fatal", "critical"]
+    if errorKeywords.contains(where: { lowercasedText.contains($0) }) {
+      return "error"
+    }
+    
+    // Check for web content
+    let webKeywords = ["http", "www", "https", "url", "link", "website", "web", "online"]
+    if webKeywords.contains(where: { lowercasedText.contains($0) }) {
+      return "web"
+    }
+    
+    // Check for form content
+    let formKeywords = ["form", "input", "submit", "button", "field", "required", "validation"]
+    if formKeywords.contains(where: { lowercasedText.contains($0) }) {
+      return "form"
+    }
+    
+    // Check for table/chart content
+    let tableKeywords = ["table", "chart", "graph", "data", "column", "row", "cell"]
+    if tableKeywords.contains(where: { lowercasedText.contains($0) }) {
+      return "table"
+    }
+    
+    // Default to text if no specific type detected
+    return "text"
+  }
+  
+  /// Generates smart tags based on content analysis
+  private func generateSmartTags(from text: String) -> [String] {
+    var tags: Set<String> = []
+    let lowercasedText = text.lowercased()
+    
+    // Temporarily disabled categorization rules for debugging
+    // Add basic content type tag
+    let contentType = detectContentType(from: text)
+    tags.insert(contentType)
+    
+    // Add language tag if not English
+    let language = detectLanguage(from: text)
+    if language != "en" {
+      tags.insert("language:\(language)")
+    }
+    
+    return Array(tags).sorted()
+  }
+  
+  /// Detects the language of the content
+  private func detectLanguage(from text: String) -> String {
+    // Simple language detection based on character sets
+    let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    
+    if text.isEmpty { return "en" }
+    
+    // Check for Chinese characters
+    let chinesePattern = "[\\u4e00-\\u9fff]"
+    if text.range(of: chinesePattern, options: .regularExpression) != nil {
+      return "zh"
+    }
+    
+    // Check for Japanese characters
+    let japanesePattern = "[\\u3040-\\u309f\\u30a0-\\u30ff]"
+    if text.range(of: japanesePattern, options: .regularExpression) != nil {
+      return "ja"
+    }
+    
+    // Check for Korean characters
+    let koreanPattern = "[\\uac00-\\ud7af]"
+    if text.range(of: koreanPattern, options: .regularExpression) != nil {
+      return "ko"
+    }
+    
+    // Check for Arabic characters
+    let arabicPattern = "[\\u0600-\\u06ff]"
+    if text.range(of: arabicPattern, options: .regularExpression) != nil {
+      return "ar"
+    }
+    
+    // Default to English
+    return "en"
+  }
+  
+  /// Checks if content contains sensitive information
+  private func containsSensitiveInformation(_ text: String) -> Bool {
+    let lowercasedText = text.lowercased()
+    
+    // Check for common sensitive patterns
+    let sensitivePatterns = [
+      "password", "secret", "key", "token", "api", "private",
+      "credit card", "ssn", "social security", "passport",
+      "address", "phone", "email", "birthday", "dob"
+    ]
+    
+    return sensitivePatterns.contains { lowercasedText.contains($0) }
+  }
+  
+  /// Generates a summary of the content
+  private func generateContentSummary(_ text: String) -> String {
+    let words = text.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+    
+    if words.count <= 10 {
+      return text
+    }
+    
+    // Simple summary: first 50 characters + "..."
+    let truncated = String(text.prefix(50))
+    return truncated + "..."
+  }
+  
+  /// Suggests organization location based on content analysis
+  private func suggestOrganizationLocation(for analysis: Any) -> String {
+    // Temporarily disabled for debugging
+    return "Uncategorized"
+  }
+  
+  /// Calculates confidence score for the analysis
+  private func calculateConfidenceScore(for analysis: Any) -> Float {
+    // Temporarily disabled for debugging
+    return 0.0
+  }
+  
+  // Enhanced OCR with latest Vision framework features
+  private func performEnhancedOCROnImage(_ image: NSImage, completion: @escaping (String?) -> Void) {
+    guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+      completion(nil)
+      return
+    }
+    
+    let request = VNRecognizeTextRequest { request, error in
+      if let error = error {
+        print("❌ Enhanced OCR error: \(error)")
+        completion(nil)
+        return
+      }
+      
+      guard let observations = request.results as? [VNRecognizedTextObservation] else {
+        completion(nil)
+        return
+      }
+      
+      // Enhanced text extraction with confidence scoring
+      let extractedText = observations.compactMap { observation -> (String, Float)? in
+        let topCandidate = observation.topCandidates(1).first
+        return topCandidate.map { ($0.string, $0.confidence) }
+      }
+      .filter { $0.1 > 0.7 } // Only high-confidence text (70%+ confidence)
+      .map { $0.0 }
+      .joined(separator: "\n")
+      
+      completion(extractedText.isEmpty ? nil : extractedText)
+    }
+    
+    // Use latest Vision framework features
+    if #available(macOS 13.0, *) {
+      request.revision = VNRecognizeTextRequestRevision3
+      request.automaticallyDetectsLanguage = true
+      // Support for multiple languages
+      request.recognitionLanguages = ["en-US", "es-ES", "fr-FR", "de-DE", "ja-JP", "zh-Hans", "zh-Hant", "ko-KR", "ar-SA"]
+    }
+    
+    request.recognitionLevel = .accurate
+    request.usesLanguageCorrection = true
+    
+    let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+    
+    DispatchQueue.global(qos: .userInitiated).async {
+      do {
+        try handler.perform([request])
+      } catch {
+        print("❌ Failed to perform enhanced OCR: \(error)")
+        completion(nil)
+      }
+    }
+  }
+  
+
+  
   // MARK: - SmartScreenshot Menu Setup
   
   private func setupSmartScreenshotMenu() {
@@ -271,6 +877,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     smartScreenshotMenu?.addItem(NSMenuItem.separator())
     
+    // Auto-OCR Section
+    let autoOCRItem = NSMenuItem(title: "Auto-OCR", action: nil, keyEquivalent: "")
+    autoOCRItem.isEnabled = false
+    smartScreenshotMenu?.addItem(autoOCRItem)
+    
+    // Toggle auto-OCR menu item
+    let toggleAutoOCRItem = NSMenuItem(
+      title: UserDefaults.standard.bool(forKey: "autoOCREnabled") ? "Disable Auto-OCR" : "Enable Auto-OCR",
+      action: #selector(toggleAutoOCR),
+      keyEquivalent: "m"
+    )
+    toggleAutoOCRItem.target = self
+    smartScreenshotMenu?.addItem(toggleAutoOCRItem)
+    
+    smartScreenshotMenu?.addItem(NSMenuItem.separator())
+    
     // Help Section
     let helpItem = NSMenuItem(title: "Help", action: nil, keyEquivalent: "")
     helpItem.isEnabled = false
@@ -303,6 +925,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     KeyboardShortcuts.onKeyDown(for: .bulkOCR) { [weak self] in
       self?.performBulkOCR()
     }
+    
+
   }
   
   // MARK: - SmartScreenshot Menu Actions
@@ -382,14 +1006,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
   }
   
+  // TODO: Implement toggleScreenshotWatcher when integrated
+  
   @objc private func showAboutSmartScreenshot() {
     let alert = NSAlert()
     alert.messageText = "SmartScreenshot"
-    alert.informativeText = "SmartScreenshot is a powerful clipboard manager with OCR capabilities.\n\nVersion: 1.0.0\n\nFeatures:\n• Screenshot OCR\n• Region capture OCR\n• Clipboard management\n• Menu bar integration"
+    alert.informativeText = "SmartScreenshot is a powerful clipboard manager with OCR capabilities.\n\nVersion: 1.0.0\n\nFeatures:\n• Screenshot OCR\n• Region capture OCR\n• Clipboard management\n• Menu bar integration\n• Automatic screenshot OCR"
     alert.alertStyle = .informational
     alert.addButton(withTitle: "OK")
     alert.runModal()
   }
+  
+
+  
+
   
   // MARK: - OCR Implementation
   
@@ -783,10 +1413,91 @@ class AppDelegate: NSObject, NSApplicationDelegate {
   
   @MainActor
   private func addToClipboardHistory(_ text: String) {
-    // Add to SmartScreenshot's clipboard history
-    let textData = text.data(using: .utf8)
-    let historyItem = HistoryItem(contents: [HistoryItemContent(type: "text", value: textData)])
-    AppState.shared.history.add(historyItem)
+    // Production-proven validation: Only save non-empty content
+    let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedText.isEmpty else {
+      print("🚫 Skipping empty clipboard content: '\(text)'")
+      return
+    }
+    
+    // Coordinate with main clipboard system to prevent duplicates
+    Clipboard.shared.setSmartScreenshotProcessing(true)
+    
+    // Use the enhanced filtering version
+    addToClipboardHistory(title: trimmedText)
+    
+    // Resume clipboard monitoring after processing
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+      Clipboard.shared.setSmartScreenshotProcessing(false)
+    }
+  }
+  
+  /// Adds an item to the clipboard history with enhanced filtering
+  private func addToClipboardHistory(
+    title: String,
+    image: NSImage? = nil,
+    application: String? = nil,
+    contentTypes: [NSPasteboard.PasteboardType] = [],
+    contentData: [Data] = []
+  ) {
+    // Production-proven validation: Comprehensive content checking
+    let hasValidContent = !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                         image != nil ||
+                         !contentData.isEmpty ||
+                         contentTypes.contains(.fileURL)
+    
+    guard hasValidContent else {
+      print("🚫 Skipping empty clipboard item: '\(title)'")
+      return
+    }
+    
+    // Additional validation: Ensure title is meaningful
+    let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmedTitle.count > 0 else {
+      print("🚫 Skipping item with empty title")
+      return
+    }
+    
+    // Create content items
+    var contents: [HistoryItemContent] = []
+    
+    // Add the main content
+    if let imageData = image?.tiffRepresentation {
+      contents.append(HistoryItemContent(type: NSPasteboard.PasteboardType.png.rawValue, value: imageData))
+    }
+    
+    // Add text content if available
+    if !trimmedTitle.isEmpty {
+      if let titleData = trimmedTitle.data(using: .utf8) {
+        contents.append(HistoryItemContent(type: NSPasteboard.PasteboardType.string.rawValue, value: titleData))
+      }
+    }
+    
+    // Add other content types
+    for (index, contentType) in contentTypes.enumerated() {
+      if index < contentData.count {
+        contents.append(HistoryItemContent(type: contentType.rawValue, value: contentData[index]))
+      }
+    }
+    
+    // Create and add the history item
+    let historyItem = HistoryItem(contents: contents)
+    historyItem.title = trimmedTitle
+    historyItem.application = application
+    // fromSmartScreenshot is read-only, so we can't set it here
+    // The property will be set automatically based on the content type
+    
+    DispatchQueue.main.async {
+      // Use the single point of entry to prevent duplicates
+      let success = Clipboard.shared.addToClipboardHistory(historyItem)
+      if success {
+        print("✅ AppDelegate: Successfully added via single point of entry")
+      } else {
+        print("🚫 AppDelegate: Duplicate blocked by single point of entry")
+      }
+    }
+    
+    print("✅ Added validated clipboard item: '\(trimmedTitle.prefix(50))...'")
   }
   
   private func showNotification(title: String, body: String, isProgress: Bool = false) {
@@ -850,5 +1561,58 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     window.contentView = scrollView
     window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
+  }
+  
+  private func updateMenubarDisplay() {
+    // Placeholder for future menubar display functionality
+    print("🔄 AppDelegate: Menubar display update requested")
+  }
+  
+  private func updateStatusItemForCurrentScreen() {
+    // Placeholder for future multi-screen status item functionality
+    print("📱 AppDelegate: Status item screen update requested")
+  }
+  
+  // MARK: - Menubar Display Settings Integration
+  
+  private func setupMenubarDisplayObservers() {
+    // Placeholder for future menubar display observers
+    print("👁️ AppDelegate: Menubar display observers setup requested")
+  }
+  
+  // MARK: - Enhanced Status Item Management
+  
+  private func setupEnhancedStatusItem() {
+    // Placeholder for future enhanced status item functionality
+    print("🔧 AppDelegate: Enhanced status item setup requested")
+  }
+
+  private func requestAccessibilityPermissions() {
+    // First check if we already have permissions without prompting
+    let isTrusted = AXIsProcessTrustedWithOptions(nil)
+    
+    if isTrusted {
+      print("✅ Accessibility permissions already granted.")
+      return
+    }
+    
+    // Only show prompt if we don't have permissions and haven't shown it recently
+    let lastPromptTime = UserDefaults.standard.object(forKey: "LastAccessibilityPromptTime") as? Date ?? Date.distantPast
+    let timeSinceLastPrompt = Date().timeIntervalSince(lastPromptTime)
+    
+    // Only show prompt once per day to avoid annoying the user
+    if timeSinceLastPrompt < 86400 { // 24 hours in seconds
+      print("⚠️ Accessibility permissions not granted, but prompt shown recently. Skipping.")
+      return
+    }
+    
+    // Show the permission request prompt
+    let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+    let _ = AXIsProcessTrustedWithOptions(options)
+    
+    // Record when we showed the prompt
+    UserDefaults.standard.set(Date(), forKey: "LastAccessibilityPromptTime")
+    
+    print("⚠️ Accessibility permissions not granted. Prompt shown to user.")
   }
 }

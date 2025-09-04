@@ -13,5 +13,25 @@
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER)-spks</string>
 		<string>$(PRODUCT_BUNDLE_IDENTIFIER)-spki</string>
 	</array>
+	<key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>
+	<array>
+		<string>Desktop/</string>
+		<string>Downloads/</string>
+		<string>Pictures/</string>
+	</array>
+	<key>com.apple.security.temporary-exception.files.absolute-path.read-write</key>
+	<array>
+		<string>/Users/camdenburke/Desktop/</string>
+		<string>/Users/camdenburke/Downloads/</string>
+		<string>/Users/camdenburke/Pictures/</string>
+	</array>
+	<key>com.apple.security.temporary-exception.files.user-selected.read-write</key>
+	<true/>
+	<key>com.apple.security.temporary-exception.files.downloads.read-write</key>
+	<true/>
+	<key>com.apple.security.temporary-exception.files.desktop.read-write</key>
+	<true/>
+	<key>com.apple.security.temporary-exception.files.pictures.read-write</key>
+	<true/>
 </dict>
 </plist>
